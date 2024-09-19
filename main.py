@@ -124,7 +124,7 @@ def get_schemas():
                 row[0]
                 for row in result
                 if row[0]
-                not in ("information_schema", "performance_schema", "mysql", "sys")
+                not in ("information_schema", "performance_schema", "mysql", "sys","doctrans")
             ]
         return {"schemas": schemas}
     except SQLAlchemyError as e:
