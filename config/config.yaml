@@ -1,0 +1,58 @@
+# openai_api_key: "YOUR_OPENAI_API_KEY"
+# model4_name: "gpt-4-1106-preview"
+# model3_name: "gpt-3.5-turbo-1106"
+numeric_attribute_template: |
+  You are a data analyst. You are cleaning the data and processing the attributes in the data that are not numeric. The columns to be processed include: {attributes}. The first 20 items of these data are as follows:
+  {data_frame_head}
+  Please help me decide whether each attribute should be processed as integer mapping or one-hot encoding based on content and semantics. If there's an attribute containing long text, consider dropping it. Integer mapping is represented by 1, one-hot encoding is represented by 2, and dropping the attribute is represented by 3. Only the data is returned in json format without any other explanation or content. Sample response: {{"color":2,"size":1,"country":2,"brand":2,"gender":1,"comments":3}}
+null_attribute_template: |
+  You are a data analyst. You are preprocessing the attributes in the data that contain null values. The columns to be processed include: {attributes}. The types of these attributes are:
+  {types_info}
+  Statistics for these properties in csv format:
+  {description_info}
+  Please help me decide how to supplement null values for each attribute based on content, statistics and semantics. The mean filling is represented by 1, the median filling is represented by 2, the mode filling is represented by 3, the introduction of a new category to represent the unknown is represented by 4, and the interpolation filling is represented by 5. Only the data is returned in json format without any other explanation or content. Sample response: {{"grade":2,"annual_income":2,"temperature":1,"fault_type":3,"country":4,"weight":1,"stock price":5}}
+decide_model_template: |
+  You are a data analyst. The shape of my data frame is {shape_info}. The head(5) of the data frame is:
+  {head_info}
+  The nunique() of the data frame is:
+  {nunique_info}
+  The description of the data frame is:
+  {description_info}
+  The data has been cleaned and preprocessed, nulls filled, and encoded ready to train the machine learning model. According to the data information provided, please help me decide which machine learning models should be used for classification prediction. Model options are: 1:LogisticRegression, 2:SVC, 3:GaussianNB, 4:RandomForestClassifier, 5:AdaBoostClassifier, 6:XGBClassifier, 7:GradientBoostingClassifier. Please select three models to take into account different model performance indicators. Only the data is returned in json format without any other explanation or content. Sample response: {{"model1":1,"model2":4,"model3":6}}
+decide_clustering_model_template: |
+  You are a data analyst. The shape of my data frame is {shape_info}. The description of the data frame is:
+  {description_info}
+  The data has been cleaned and preprocessed, numerically transformed, and ready to train the clustering models. According to the data information provided, please help me decide which clustering models should be used for discovering natural groupings in the data. The expected number of clusters is {cluster_info}. Model options are: 1:KMeans, 2:DBSCAN, 3:GaussianMixture, 4:AgglomerativeClustering, 5:SpectralClustering. Please select three models to take into account different model performance indicators. Only the data is returned in json format without any other explanation or content. Sample response: {{"model1":1,"model2":2,"model3":3}}
+decide_regression_model_template: |
+  You are a data analyst. You are trying to select some regression models to predict the target attribute. The shape of my data frame is {shape_info}. The target variable to be predicted is {Y_name}. The description of the data frame is:
+  {description_info}
+  The data has been cleaned and preprocessed, numerically transformed, and ready to train the regression models. According to the data information provided, please help me decide which regression models should be used to provide better prediction performance. Model options are: 1:LinearRegression, 2:Ridge, 3:Lasso, 4:RandomForestRegressor, 5:GradientBoostingRegressor, 6:ElasticNet. Please select three models to take into account different model performance indicators. Only the data is returned in json format without any other explanation or content. Sample response: {{"model1":1,"model2":2,"model3":3}}
+decide_target_attribute_template: |
+  You are a data analyst. You are trying to find out which attribute is the target attribute from the data frame. The attributes are {attributes}. The types of these attributes are:
+  {types_info}
+  The head(10) of the data frame is:
+  {head_info}
+  Determine the target attribute to predict based on the data information provided. Only the data is returned in json format without any other explanation or content. Sample response: {{"target":"species"}}
+  If the provided data is not sufficient to determine the target, only return the data in json format {{"target":-1}}
+decide_test_ratio_template: |
+  You are a data analyst. You are trying to split the data frame into training set and test set. The shape of my data frame is {shape_info}. Determine the test set ratio based on the shape information provided and it's assumed that the categories of the target variable are balanced. The test set ratio range is 0.01 to 0.25. Only the data is returned in json format without any other explanation or content. Sample response: {{"test_ratio":0.25}}
+decide_balance_template: |
+  You are a data analyst. You have a cleaned and pre-processed data frame and you want to handle class imbalance before training the machine learning model. The shape of my data frame is {shape_info}. Include important parameters to predict the output.
+  The number of each value of the target attribute is: {balance_info}
+  Determine the balance strategy based on the data information provided. The RandomOverSampler is represented by 1, the SMOTE is represented by 2, the ADASYN is represented by 3, and do not balance is represented by 4. Only the data is returned in json format without any other explanation or content. Sample response: {{"method":2}}
+
+lottie_url1: "https://lottie.host/f89e48e2-55e5-4fdf-a406-0be2b00cc2af/ECJa6PGrCV.json"
+lottie_url2: "https://lottie.host/05824020-0a23-4373-8418-721bd6e68504/FE5XXRT455.json"
+welcome_template: "DataNexus revolutionizes data analysis by offering a user-friendly AI chatbot that simplifies interactions with various data formats such as CSV, PDF, and TXT. With an intuitive chat interface, users can effortlessly explore, clean, preprocess, and analyze their data without the need for coding or technical expertise. DataNexus automates time-consuming tasks, recommends the most suitable machine learning models, and provides visualized insights, democratizing data-driven decision-making for individuals and organizations of all skill levels. With plans for expanding functionality, improving documentation, and aiming for widespread adoption, DataNexus is set to become the go-to platform for unlocking the true potential of data."
+introduction_template1: |
+  As a data analysis agent, **DataNexus Analyst** is capable of making autonomous decisions based on your data:
+  - Effortless Data Preprocessing
+  - Intelligent Encoding & Balancing
+  - Automated Model Selection & Training
+  - Dynamic Data Visualization
+  - And much more...
+introduction_template2: |
+  **You only need to**:
+  1. **Select** your data file
+  2. **Choose** an analysis mode
+  3. **Press** the Start button
