@@ -196,6 +196,8 @@ def query_database(request: QueryRequest):
                 # Save results to CSV file
                 df.to_csv("output.csv", index=False)
                 logger.debug("Data saved to output.csv")
+                
+                transaction.commit()  # Commit the transaction if successful
             except SQLAlchemyError as e:
                 transaction.rollback()  # Rollback the transaction in case of an error
                 logger.error(f"SQLAlchemy error during query execution: {str(e)}")
@@ -203,8 +205,10 @@ def query_database(request: QueryRequest):
                     status_code=500,
                     detail=f"SQLAlchemy error during query execution: {str(e)}",
                 )
-            finally:
-                transaction.commit()  # Commit the transaction if successful
+            except Exception as e:
+                transaction.rollback()  # Always rollback if there is any exception
+                logger.error(f"Unexpected error: {str(e)}")
+                raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
 
         return {"result": output_response, "sql_query": sql_query}
 
@@ -214,6 +218,7 @@ def query_database(request: QueryRequest):
     except Exception as e:
         logger.error(f"Unexpected error: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
+
 
 
 
