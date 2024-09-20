@@ -124,7 +124,7 @@ def get_schemas():
                 row[0]
                 for row in result
                 if row[0]
-                not in ("information_schema", "performance_schema", "mysql", "sys","doctrans")
+                not in ("information_schema", "performance_schema", "mysql", "sys")
             ]
         return {"schemas": schemas}
     except SQLAlchemyError as e:
@@ -163,47 +163,51 @@ class QueryResponse(BaseModel):
 @app.post("/query")
 def query_database(request: QueryRequest):
     try:
-        db = get_db()
+        db = get_db()  # Ensure you are getting a fresh database object for each query
         logger.debug(f"Database object: {db}")
 
+        # Generate the SQL query using LLM
         chain = create_sql_query_chain(llm, db)
-        sql_query_raw = chain.invoke(
-            {"question": request.query}
-        )  # Ensure this matches the request model
+        sql_query_raw = chain.invoke({"question": request.query})
         logger.debug(f"Raw SQL Query: {sql_query_raw}")
 
-        # Extract the actual SQL query if there is additional text
+        # Clean and extract the actual SQL query
         if "SQLQuery:" in sql_query_raw:
             sql_query = sql_query_raw.split("SQLQuery:")[-1].strip()
         else:
             sql_query = sql_query_raw.strip()
 
-        # Remove code block delimiters if present
-        sql_query = sql_query.replace("sql", "").replace("", "").strip()
+        # Clean up SQL query for safe execution
+        sql_query = re.sub(r"```.*?\n", "", sql_query).strip()  # Removes ```sql or just ``` from the query
         logger.debug(f"Cleaned SQL Query: {sql_query}")
 
-        # Execute the SQL query
+        # Execute SQL query safely
         engine = get_engine(DB_Name)
-        Session = sessionmaker(bind=engine)
-        session = Session()
-        try:
-            df = pd.read_sql_query(sql_query, engine)
-            output_response = df.to_dict(orient="records")
-            logger.debug(f"Query results: {output_response}")
+        output_response = None
 
-            # Save the DataFrame to a CSV file
-            df.to_csv("output.csv", index=False)
-            logger.debug("Data saved to output.csv")
-        except SQLAlchemyError as e:
-            logger.error(f"SQLAlchemy error during query execution: {str(e)}")
-            raise HTTPException(
-                status_code=500,
-                detail=f"SQLAlchemy error during query execution: {str(e)}",
-            )
-        finally:
-            session.close()
+        # Use a new connection for the query to avoid the sync issue
+        with engine.connect() as connection:
+            transaction = connection.begin()  # Start a transaction
+            try:
+                df = pd.read_sql_query(sql_query, connection)  # Execute query
+                output_response = df.to_dict(orient="records")  # Convert result to a dictionary
+                logger.debug(f"Query results: {output_response}")
+
+                # Save results to CSV file
+                df.to_csv("output.csv", index=False)
+                logger.debug("Data saved to output.csv")
+            except SQLAlchemyError as e:
+                transaction.rollback()  # Rollback the transaction in case of an error
+                logger.error(f"SQLAlchemy error during query execution: {str(e)}")
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"SQLAlchemy error during query execution: {str(e)}",
+                )
+            finally:
+                transaction.commit()  # Commit the transaction if successful
 
         return {"result": output_response, "sql_query": sql_query}
+
     except SQLAlchemyError as e:
         logger.error(f"SQLAlchemy error: {str(e)}")
         raise HTTPException(status_code=500, detail=f"SQLAlchemy error: {str(e)}")
@@ -212,5 +216,8 @@ def query_database(request: QueryRequest):
         raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
 
 
-if __name__ == "_main_":
+
+
+
+if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8080, log_level="info")
