@@ -2,59 +2,36 @@ import os
 import uvicorn
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
-import json
 from langchain_google_genai import ChatGoogleGenerativeAI
-
-import time
-import fastapi
 from langchain.chains import create_sql_query_chain
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import SQLAlchemyError
 from langchain_community.utilities import SQLDatabase
-
-# from langchain_openai import AzureChatOpenAI
-# from langchain_community.agent_toolkits import SQLDatabaseToolkit
-from langchain_community.agent_toolkits.sql.base import create_sql_agent
-
-# from langchain.agents import AgentExecutor
-# from langchain.agents.agent_types import AgentType
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import re
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import scoped_session, sessionmaker
 import pandas as pd
-import csv
-from langchain_core.prompts import (
-    ChatPromptTemplate,
-    FewShotPromptTemplate,
-    MessagesPlaceholder,
-    PromptTemplate,
-    SystemMessagePromptTemplate,
-)
-from langchain_core.prompts import (
-    ChatPromptTemplate,
-    FewShotChatMessagePromptTemplate,
-    PromptTemplate,
-)
 import logging
 
-GOOGLE_API_KEY = "AIzaSyC2ykmE8kwmam1D6Xn60l7XE964CuTKGS8"
-
+GOOGLE_API_KEY = "AIzaSyCXMNUqhnPX_EV1BPWgfs0oqGcAybwozzA"
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
-app = fastapi.FastAPI(
+app = FastAPI(
     title="SQLAgent",
     description="This is CDA SQL Agent",
     version="0.1.0",
     openapi_url="/api/v0.1.1/openapi.json",
 )
+
 # Allow CORS for your frontend origin
 origins = [
     "http://127.0.0.1:5501",
 ]
+
 # Load the environment variables
 load_dotenv()
 app.add_middleware(
@@ -68,47 +45,38 @@ app.add_middleware(
 # Global variable to store the database name
 DB_Name = None
 
-
 class DBRequest(BaseModel):
     db_name: str
-
 
 @app.get("/")
 async def index():
     return {"SQLAgent is Up and Running"}
 
-
 @app.post("/set_db_name")
 def set_db_name(request: DBRequest):
-    global DB_Name
+    global DB_Name, Session, engine
     DB_Name = request.db_name
     logger.debug(f"Database name set to: {DB_Name}")
-    return {"message": "Database name set successfully", "db_name": DB_Name}
 
+    # Reinitialize the engine and session whenever the DB name changes
+    engine = create_engine(get_connection_string(DB_Name))
+    Session = scoped_session(sessionmaker(bind=engine))
+
+    return {"message": "Database name set successfully", "db_name": DB_Name}
 
 # Set up database connection parameters
 hostname = "cdaserver.mysql.database.azure.com"
 password = "Qwerty*1"
 user = "cdaadmin"
 
-
 def get_connection_string(db_name=None):
     if db_name:
         return f"mysql+mysqlconnector://{user}:{password}@{hostname}:3306/{db_name}"
     return f"mysql+mysqlconnector://{user}:{password}@{hostname}:3306"
 
-
-# Initialize SQLAlchemy engine and session
-def get_engine(db_name=None):
-    connection_string = get_connection_string(db_name)
-    logger.debug(f"Connection string: {connection_string}")
-    return create_engine(connection_string)
-
-
-def get_db():
-    engine = get_engine(DB_Name)
-    return SQLDatabase(engine)
-
+# Initialize the SQLAlchemy engine globally
+engine = create_engine(get_connection_string(DB_Name))
+Session = scoped_session(sessionmaker(bind=engine))
 
 @app.get("/schemas")
 def get_schemas():
@@ -117,109 +85,74 @@ def get_schemas():
             f"mysql+mysqlconnector://{user}:{password}@{hostname}:3306/cda"
         )
         logger.debug(f"Schema connection string: {connection_string}")
-        engine = create_engine(connection_string)
         with engine.connect() as connection:
             result = connection.execute(text("SHOW DATABASES"))
             schemas = [
                 row[0]
                 for row in result
-                if row[0]
-                not in ("information_schema", "performance_schema", "mysql", "sys")
+                if row[0] not in ("information_schema", "performance_schema", "mysql", "sys")
             ]
         return {"schemas": schemas}
     except SQLAlchemyError as e:
         logger.error(f"Error fetching schemas: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
-
-from langchain.agents.mrkl import prompt as react_prompt
-
-
-# Set up Azure OpenAI
-# llm = AzureChatOpenAI(
-#     deployment_name=os.getenv("AZURE_OPENAI_DEPLOYMENT"),
-#     temperature=0,
-#     api_version=os.getenv("OPENAI_API_VERSION"),
-#     azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
-#     max_tokens=None,
-#     timeout=None,
-#     max_retries=2,
-#     api_key=os.getenv("AZURE_OPENAI_API_KEY"),
-# )
-
-
+# Set up the LLM
 llm = ChatGoogleGenerativeAI(model="gemini-1.5-pro-exp-0827", api_key=GOOGLE_API_KEY)
-
 
 class QueryRequest(BaseModel):
     query: str
-
 
 class QueryResponse(BaseModel):
     result: list
     sql_query: str
 
-
 @app.post("/query")
 def query_database(request: QueryRequest):
-    try:
-        db = get_db()  # Ensure you are getting a fresh database object for each query
-        logger.debug(f"Database object: {db}")
+    with Session() as session:
+        try:
+            db = SQLDatabase(engine)  # Ensure you are getting a fresh database object for each query
+            logger.debug(f"Database object: {db}")
 
-        # Generate the SQL query using LLM
-        chain = create_sql_query_chain(llm, db)
-        sql_query_raw = chain.invoke({"question": request.query})
-        logger.debug(f"Raw SQL Query: {sql_query_raw}")
+            # Generate the SQL query using LLM
+            chain = create_sql_query_chain(llm, db)
+            sql_query_raw = chain.invoke({"question": request.query})
+            logger.debug(f"Raw SQL Query: {sql_query_raw}")
 
-        # Clean and extract the actual SQL query
-        if "SQLQuery:" in sql_query_raw:
-            sql_query = sql_query_raw.split("SQLQuery:")[-1].strip()
-        else:
-            sql_query = sql_query_raw.strip()
+            # Clean and extract the actual SQL query
+            sql_query = sql_query_raw.split("SQLQuery:")[-1].strip() if "SQLQuery:" in sql_query_raw else sql_query_raw.strip()
+            sql_query = re.sub(r"```.*?\n", "", sql_query).strip()
+            logger.debug(f"Cleaned SQL Query: {sql_query}")
 
-        # Clean up SQL query for safe execution
-        sql_query = re.sub(r"```.*?\n", "", sql_query).strip()  # Removes ```sql or just ``` from the query
-        logger.debug(f"Cleaned SQL Query: {sql_query}")
+            # Execute SQL query safely
+            result = session.execute(text(sql_query))  # Execute the query using session
+            
+            # Fetch all results
+            fetched_rows = result.fetchall()
+            logger.debug(f"Fetched rows: {fetched_rows}")
 
-        # Execute SQL query safely
-        engine = get_engine(DB_Name)
-        output_response = None
+            # Get column names from the result
+            column_names = result.keys()
+            logger.debug(f"Column names: {column_names}")
 
-        # Use a new connection for the query to avoid the sync issue
-        with engine.connect() as connection:
-            transaction = connection.begin()  # Start a transaction
-            try:
-                df = pd.read_sql_query(sql_query, connection)  # Execute query
-                output_response = df.to_dict(orient="records")  # Convert result to a dictionary
-                logger.debug(f"Query results: {output_response}")
+            # Convert rows to a list of dictionaries
+            output_response = [{column: value for column, value in zip(column_names, row)} for row in fetched_rows]
+            logger.debug(f"Query results: {output_response}")
 
-                # Save results to CSV file
-                df.to_csv("output.csv", index=False)
-                logger.debug("Data saved to output.csv")
-                
-                transaction.commit()  # Commit the transaction if successful
-            except SQLAlchemyError as e:
-                transaction.rollback()  # Rollback the transaction in case of an error
-                logger.error(f"SQLAlchemy error during query execution: {str(e)}")
-                raise HTTPException(
-                    status_code=500,
-                    detail=f"SQLAlchemy error during query execution: {str(e)}",
-                )
-            except Exception as e:
-                transaction.rollback()  # Always rollback if there is any exception
-                logger.error(f"Unexpected error: {str(e)}")
-                raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
+            # Save results to CSV file
+            pd.DataFrame(output_response).to_csv("output.csv", index=False)
+            logger.debug("Data saved to output.csv")
 
-        return {"result": output_response, "sql_query": sql_query}
+            return {"result": output_response, "sql_query": sql_query}
 
-    except SQLAlchemyError as e:
-        logger.error(f"SQLAlchemy error: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"SQLAlchemy error: {str(e)}")
-    except Exception as e:
-        logger.error(f"Unexpected error: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
-
-
+        except SQLAlchemyError as e:
+            logger.error(f"SQLAlchemy error: {str(e)}")
+            session.rollback()  # Rollback session on error
+            raise HTTPException(status_code=500, detail=str(e))
+        except Exception as e:
+            logger.error(f"Unexpected error: {str(e)}")
+            session.rollback()  # Rollback session on error
+            raise HTTPException(status_code=500, detail=str(e))
 
 
 
