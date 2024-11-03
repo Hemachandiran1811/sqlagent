@@ -70,8 +70,11 @@ user = "cdaadmin"
 
 def get_connection_string(db_name=None):
     if db_name:
-        return f"mysql+mysqlconnector://{user}:{password}@{hostname}:3306/{db_name}"
-    return f"mysql+mysqlconnector://{user}:{password}@{hostname}:3306"
+        connection_string = f"mysql+mysqlconnector://{user}:{password}@{hostname}:3306/{db_name}"
+    else:
+        connection_string = f"mysql+mysqlconnector://{user}:{password}@{hostname}:3306/resource_allocations"
+    logger.debug(f"Using connection string: {connection_string}")
+    return connection_string
 
 # Initialize the SQLAlchemy engine globally
 engine = create_engine(get_connection_string(DB_Name))
