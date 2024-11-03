@@ -116,7 +116,8 @@ def query_database(request: QueryRequest):
             # Initialize the database object using SQLAlchemy engine
             db = SQLDatabase(engine)  # Ensure you are getting a fresh database object for each query
             logger.debug(f"Database object: {db}")
-
+            # Generate the SQL query using LLM
+            chain = create_sql_query_chain(llm, db)
             # Generate the SQL query using LLM
             sql_query_raw = chain.invoke({"question": request.query})
             logger.debug(f"Raw SQL Query: {sql_query_raw}")
