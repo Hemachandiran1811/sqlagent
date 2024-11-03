@@ -13,25 +13,25 @@ import re
 from sqlalchemy.orm import scoped_session, sessionmaker
 import pandas as pd
 import logging
-
-GOOGLE_API_KEY = "AIzaSyCXMNUqhnPX_EV1BPWgfs0oqGcAybwozzA"
-
+ 
+GOOGLE_API_KEY = "AIzaSyC2ykmE8kwmam1D6Xn60l7XE964CuTKGS8"
+ 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
-
+ 
 app = FastAPI(
     title="SQLAgent",
     description="This is CDA SQL Agent",
     version="0.1.0",
     openapi_url="/api/v0.1.1/openapi.json",
 )
-
+ 
 # Allow CORS for your frontend origin
 origins = [
     "http://127.0.0.1:5501",
 ]
-
+ 
 # Load the environment variables
 load_dotenv()
 app.add_middleware(
@@ -41,43 +41,43 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
+ 
 # Global variable to store the database name
 DB_Name = None
-
+ 
 class DBRequest(BaseModel):
     db_name: str
-
+ 
 @app.get("/")
 async def index():
     return {"SQLAgent is Up and Running"}
-
+ 
 @app.post("/set_db_name")
 def set_db_name(request: DBRequest):
     global DB_Name, Session, engine
     DB_Name = request.db_name
     logger.debug(f"Database name set to: {DB_Name}")
-
+ 
     # Reinitialize the engine and session whenever the DB name changes
     engine = create_engine(get_connection_string(DB_Name))
     Session = scoped_session(sessionmaker(bind=engine))
-
+ 
     return {"message": "Database name set successfully", "db_name": DB_Name}
-
+ 
 # Set up database connection parameters
 hostname = "cdaserver.mysql.database.azure.com"
 password = "Qwerty*1"
 user = "cdaadmin"
-
+ 
 def get_connection_string(db_name=None):
     if db_name:
         return f"mysql+mysqlconnector://{user}:{password}@{hostname}:3306/{db_name}"
     return f"mysql+mysqlconnector://{user}:{password}@{hostname}:3306"
-
+ 
 # Initialize the SQLAlchemy engine globally
 engine = create_engine(get_connection_string(DB_Name))
 Session = scoped_session(sessionmaker(bind=engine))
-
+ 
 @app.get("/schemas")
 def get_schemas():
     try:
@@ -90,27 +90,28 @@ def get_schemas():
             schemas = [
                 row[0]
                 for row in result
-                if row[0] not in ("information_schema", "performance_schema", "mysql", "sys")
+                if row[0] not in ("information_schema", "performance_schema", "mysql", "sys","doctrans")
             ]
         return {"schemas": schemas}
     except SQLAlchemyError as e:
         logger.error(f"Error fetching schemas: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
-
+ 
 # Set up the LLM
 llm = ChatGoogleGenerativeAI(model="gemini-1.5-pro-exp-0827", api_key=GOOGLE_API_KEY)
-
+ 
 class QueryRequest(BaseModel):
     query: str
-
+ 
 class QueryResponse(BaseModel):
     result: list
     sql_query: str
-
+ 
 @app.post("/query")
 def query_database(request: QueryRequest):
     with Session() as session:
         try:
+            # Initialize the database object using SQLAlchemy engine
             db = SQLDatabase(engine)  # Ensure you are getting a fresh database object for each query
             logger.debug(f"Database object: {db}")
 
@@ -124,19 +125,18 @@ def query_database(request: QueryRequest):
             sql_query = re.sub(r"```.*?\n", "", sql_query).strip()
             logger.debug(f"Cleaned SQL Query: {sql_query}")
 
-            # Execute SQL query safely
-            result = session.execute(text(sql_query))  # Execute the query using session
-            
-            # Fetch all results
-            fetched_rows = result.fetchall()
+            # Execute the SQL query safely and fetch all results
+            with session.begin():  # Proper transaction management with `begin` context
+                result = session.execute(text(sql_query))  # Execute the query
+                fetched_rows = result.fetchall()  # Fetch all rows at once
+                column_names = result.keys()  # Fetch the column names
             logger.debug(f"Fetched rows: {fetched_rows}")
-
-            # Get column names from the result
-            column_names = result.keys()
             logger.debug(f"Column names: {column_names}")
 
-            # Convert rows to a list of dictionaries
-            output_response = [{column: value for column, value in zip(column_names, row)} for row in fetched_rows]
+            # Convert rows to a list of dictionaries for the response
+            output_response = [
+                {column: value for column, value in zip(column_names, row)} for row in fetched_rows
+            ]
             logger.debug(f"Query results: {output_response}")
 
             # Save results to CSV file
@@ -153,9 +153,11 @@ def query_database(request: QueryRequest):
             logger.error(f"Unexpected error: {str(e)}")
             session.rollback()  # Rollback session on error
             raise HTTPException(status_code=500, detail=str(e))
+        finally:
+            session.close()  # Ensure session is always closed after execution
 
-
-
-
+ 
+ 
+ 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8080, log_level="info")
