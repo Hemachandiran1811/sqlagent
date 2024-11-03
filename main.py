@@ -139,9 +139,9 @@ def query_database(request: QueryRequest):
             ]
             logger.debug(f"Query results: {output_response}")
 
-            # Save results to CSV file
-            pd.DataFrame(output_response).to_csv("output.csv", index=False)
-            logger.debug("Data saved to output.csv")
+            # # Save results to CSV file
+            # pd.DataFrame(output_response).to_csv("output.csv", index=False)
+            # logger.debug("Data saved to output.csv")
 
             return {"result": output_response, "sql_query": sql_query}
 
