@@ -13,7 +13,7 @@ import re
 from sqlalchemy.orm import scoped_session, sessionmaker
 import logging
 
-GOOGLE_API_KEY = "AIzaSyC2ykmE8kwmam1D6Xn60l7XE964CuTKGS8"
+GOOGLE_API_KEY = "AIzaSyADQZ40SYbAqq6lRSKtodlRLNXM5EZK_mc"
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
