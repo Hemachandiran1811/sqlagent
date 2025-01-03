@@ -199,10 +199,11 @@ async def translate_document(
         output_file_path = f"./uploads/translated_{file.filename}"
         with open(input_file_path, "wb") as temp_file:
             temp_file.write(await file.read())
+        trg = next((code for code, language in language_map.items() if language.lower() == target_language.lower()), None)
 
         # Prepare parameters (exclude sourceLanguage for auto-detection)
         params = {
-            "targetLanguage": target_language,
+            "targetLanguage": trg,
             "api-version": "2023-11-01-preview"
         }
 
