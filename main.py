@@ -193,13 +193,20 @@ async def translate_document(
     uploads_dir = './uploads'
     if not os.path.exists(uploads_dir):
         os.makedirs(uploads_dir)
+        
     try:
         # Save the uploaded file temporarily
-        input_file_path = f"./uploads/{file.filename}"
-        output_file_path = f"./uploads/translated_{file.filename}"
+        input_file_path = os.path.join(uploads_dir, file.filename)
+        output_file_path = os.path.join(uploads_dir, f"translated_{file.filename}")
+
         with open(input_file_path, "wb") as temp_file:
             temp_file.write(await file.read())
+
+        # Find the target language code from the language_map
         trg = next((code for code, language in language_map.items() if language.lower() == target_language.lower()), None)
+        
+        if not trg:
+            raise HTTPException(status_code=400, detail="Invalid target language")
 
         # Prepare parameters (exclude sourceLanguage for auto-detection)
         params = {
@@ -232,10 +239,13 @@ async def translate_document(
                 headers={"Content-Disposition": f"attachment; filename=translated_{file.filename}"}
             )
         else:
-            return {"error": response.json()}
+            # If the API response is an error, return the error details
+            error_details = response.json()
+            raise HTTPException(status_code=response.status_code, detail=error_details)
 
     except Exception as e:
-        return {"error": str(e)}
+        # General error handling
+        raise HTTPException(status_code=500, detail=f"Error during translation: {str(e)}")
 
 host = "cdaserver.mysql.database.azure.com"
 user = "cdaadmin"
