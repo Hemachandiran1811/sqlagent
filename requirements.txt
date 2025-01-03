@@ -1,5 +1,6 @@
 fastapi
 gunicorn
+python-multipart
 uvicorn
 python-dotenv
 langchain-google-genai
