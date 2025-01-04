@@ -185,9 +185,9 @@ headers = {
 class TranslationRequest(BaseModel):
     target_lang: str
  
-@app.post("/translate/")
+@app.post("/translate-document/")
 async def translate_document(
-    target_language: str = Form(...),
+    target_lang: str = Form(...),
     file: UploadFile = File(...)
 ):
     uploads_dir = './uploads'
@@ -204,11 +204,11 @@ async def translate_document(
 
         # Normalize target_language and find the target language code
         trg = next(
-            (code for code, language in language_map.items() if language.lower() == target_language.lower()),
+            (code for code, language in language_map.items() if language.lower() == target_lang.lower()),
             None
         )
         if not trg:
-            raise HTTPException(status_code=400, detail=f"Invalid target language: {target_language}")
+            raise HTTPException(status_code=400, detail=f"Invalid target language: {target_lang}")
 
         # Prepare parameters (exclude sourceLanguage for auto-detection)
         params = {
