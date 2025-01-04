@@ -2,7 +2,7 @@ from fastapi import FastAPI, HTTPException, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-
+import asyncio
 import io
 from PyPDF2 import PdfReader
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
@@ -229,7 +229,7 @@ async def translate_document(
             # Save the translated document
             with open(output_file_path, "wb") as output_file:
                 output_file.write(response.content)
-
+            await asyncio.sleep(30)
             # Stream the saved document as a response
             def iterfile():
                 with open(output_file_path, "rb") as f:
