@@ -193,7 +193,7 @@ async def translate_document(
     uploads_dir = './uploads'
     if not os.path.exists(uploads_dir):
         os.makedirs(uploads_dir)
-        
+
     try:
         # Save the uploaded file temporarily
         input_file_path = os.path.join(uploads_dir, file.filename)
@@ -202,11 +202,13 @@ async def translate_document(
         with open(input_file_path, "wb") as temp_file:
             temp_file.write(await file.read())
 
-        # Find the target language code from the language_map
-        trg = next((code for code, language in language_map.items() if language.lower() == target_language.lower()), None)
-        
+        # Normalize target_language and find the target language code
+        trg = next(
+            (code for code, language in language_map.items() if language.lower() == target_language.lower()),
+            None
+        )
         if not trg:
-            raise HTTPException(status_code=400, detail="Invalid target language")
+            raise HTTPException(status_code=400, detail=f"Invalid target language: {target_language}")
 
         # Prepare parameters (exclude sourceLanguage for auto-detection)
         params = {
@@ -239,7 +241,7 @@ async def translate_document(
                 headers={"Content-Disposition": f"attachment; filename=translated_{file.filename}"}
             )
         else:
-            # If the API response is an error, return the error details
+            # Log Azure API response
             error_details = response.json()
             raise HTTPException(status_code=response.status_code, detail=error_details)
 
