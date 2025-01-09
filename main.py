@@ -188,7 +188,7 @@ class TranslationRequest(BaseModel):
  
 @app.post("/translate-document/")
 async def translate_document(
-    target_langs: str = Form(...),  # Comma-separated target languages
+    target_lang: str = Form(...),  # Comma-separated target languages
     file: UploadFile = File(...)
 ):
     uploads_dir = './uploads'
