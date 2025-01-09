@@ -16,6 +16,7 @@ import chardet
 import os
 import requests
 import langid
+import zipfile
 
 app = FastAPI()
 app.add_middleware(
@@ -187,7 +188,7 @@ class TranslationRequest(BaseModel):
  
 @app.post("/translate-document/")
 async def translate_document(
-    target_lang: str = Form(...),
+    target_langs: str = Form(...),  # Comma-separated target languages
     file: UploadFile = File(...)
 ):
     uploads_dir = './uploads'
@@ -197,53 +198,62 @@ async def translate_document(
     try:
         # Save the uploaded file temporarily
         input_file_path = os.path.join(uploads_dir, file.filename)
-        output_file_path = os.path.join(uploads_dir, f"translated_{file.filename}")
 
         with open(input_file_path, "wb") as temp_file:
             temp_file.write(await file.read())
 
-        # Normalize target_language and find the target language code
-        trg = next(
-            (code for code, language in language_map.items() if language.lower() == target_lang.lower()),
-            None
-        )
-        if not trg:
-            raise HTTPException(status_code=400, detail=f"Invalid target language: {target_lang}")
+        # Split the target languages into a list
+        target_languages = [lang.strip() for lang in target_langs.split(",")]
 
-        # Prepare parameters (exclude sourceLanguage for auto-detection)
-        params = {
-            "targetLanguage": trg,
-            "api-version": "2023-11-01-preview"
-        }
+        # List to store the translated file information
+        translated_files = []
 
-        # Prepare files for the request
-        with open(input_file_path, "rb") as document:
-            files = {
-                "document": (os.path.basename(input_file_path), document, "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+        for target_lang in target_languages:
+            # Normalize target_language and find the target language code
+            trg = next(
+                (code for code, language in language_map.items() if language.lower() == target_lang.lower()),
+                None
+            )
+            if not trg:
+                raise HTTPException(status_code=400, detail=f"Invalid target language: {target_lang}")
+
+            # Prepare parameters (exclude sourceLanguage for auto-detection)
+            params = {
+                "targetLanguage": trg,
+                "api-version": "2023-11-01-preview"
             }
 
-            # Make the request to the Azure Translation API
-            response = requests.post(url, headers=headers, params=params, files=files)
+            # Prepare files for the request
+            with open(input_file_path, "rb") as document:
+                files = {
+                    "document": (os.path.basename(input_file_path), document, "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+                }
 
-        if response.status_code == 200:
-            # Save the translated document
-            with open(output_file_path, "wb") as output_file:
-                output_file.write(response.content)
-            await asyncio.sleep(30)
-            # Stream the saved document as a response
+                # Make the request to the Azure Translation API
+                response = requests.post(url, headers=headers, params=params, files=files)
+
+            if response.status_code == 200:
+                # Save the translated document for the specific language
+                output_file_path = os.path.join(uploads_dir, f"translated_{target_lang}_{file.filename}")
+                with open(output_file_path, "wb") as output_file:
+                    output_file.write(response.content)
+                translated_files.append((target_lang, output_file_path))
+            else:
+                # Log Azure API response
+                error_details = response.json()
+                raise HTTPException(status_code=response.status_code, detail=error_details)
+
+        # Stream each translated file individually
+        for target_lang, file_path in translated_files:
             def iterfile():
-                with open(output_file_path, "rb") as f:
+                with open(file_path, "rb") as f:
                     yield from f
 
             return StreamingResponse(
                 iterfile(),
                 media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                headers={"Content-Disposition": f"attachment; filename=translated_{file.filename}"}
+                headers={"Content-Disposition": f"attachment; filename=translated_{target_lang}_{file.filename}"}
             )
-        else:
-            # Log Azure API response
-            error_details = response.json()
-            raise HTTPException(status_code=response.status_code, detail=error_details)
 
     except Exception as e:
         # General error handling
