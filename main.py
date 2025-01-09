@@ -203,7 +203,7 @@ async def translate_document(
             temp_file.write(await file.read())
 
         # Split the target languages into a list
-        target_languages = [lang.strip() for lang in target_langs.split(",")]
+        target_languages = [lang.strip() for lang in target_lang.split(",")]
 
         # List to store the translated file information
         translated_files = []
