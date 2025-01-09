@@ -16,7 +16,7 @@ import chardet
 import os
 import requests
 import langid
-import zipfile
+import asyncio
 
 app = FastAPI()
 app.add_middleware(
@@ -237,6 +237,7 @@ async def translate_document(
                 output_file_path = os.path.join(uploads_dir, f"translated_{target_lang}_{file.filename}")
                 with open(output_file_path, "wb") as output_file:
                     output_file.write(response.content)
+                await asyncio.sleep(30)
                 translated_files.append((target_lang, output_file_path))
             else:
                 # Log Azure API response
