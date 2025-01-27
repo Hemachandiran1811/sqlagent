@@ -176,12 +176,12 @@ async def detect_language(file: UploadFile = File(...)):
 
 src = "en"  # source language
  
-endpoint = "https://ai-hemachandirant2000ai2828457738479555.cognitiveservices.azure.com"
+endpoint = "https://ai-hemachandirant2000-6850.cognitiveservices.azure.com/"
 path = "/translator/document:translate"
 url = endpoint + path
 
 headers = {
-    "Ocp-Apim-Subscription-Key": "EljYKuTJXi7Sshri8p84RmhDXI73Sr85WatFlNVb9gmppeYg7o0IJQQJ99BAACYeBjFXJ3w3AAAAACOG9Zf5"
+    "Ocp-Apim-Subscription-Key": "9Us169x8J48FQApQxXkNmQ8V0tfOIOcAOpz4vQ2TjpWD2zKPme18JQQJ99BAACYeBjFXJ3w3AAAAACOGGich"
 }
 class TranslationRequest(BaseModel):
     target_lang: str
